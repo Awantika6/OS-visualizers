@@ -1,0 +1,283 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Banker's Algorithm | Deep Space Resource Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass-card { background: white; border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        
+        .ship { transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
+        .ship-active { transform: scale(1.05); border-color: #4f46e5; background: #f5f3ff; }
+        .ship-finished { transform: translateX(50px); opacity: 0.5; filter: grayscale(1); }
+        
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+        .floating { animation: float 3s ease-in-out infinite; }
+
+        .resource-chip { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; }
+        .chip-a { background: #e0e7ff; color: #4338ca; }
+        .chip-b { background: #fef3c7; color: #92400e; }
+        .chip-c { background: #d1fae5; color: #065f46; }
+        
+        .suggestion-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px; margin-top: 10px; font-size: 0.75rem; color: #92400e; display: none; }
+        .task-option { cursor: pointer; border: 1px solid #e2e8f0; padding: 8px; border-radius: 8px; font-size: 0.7rem; transition: 0.2s; }
+        .task-option:hover { background: #f1f5f9; border-color: #4f46e5; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-4 space-y-6">
+            <header>
+                <h1 class="text-3xl font-800 tracking-tighter uppercase italic">Banker's Algorithm</h1>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1"></p>
+            </header>
+
+            <div class="glass-card p-6 space-y-4 border-l-8 border-l-indigo-600">
+                <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">The Briefing:</h3>
+                <div class="text-xs space-y-4 leading-relaxed font-medium text-slate-600">
+<p >
+                    The Banker's Algorithm ensures system safety by verifying that a path exists where every process can complete its mission without causing a                     deadlock.</p>
+                    <p><b>1. Max Claim:</b> Every ship must declare its total resource needs before leaving the docking bay. The system checks if this cargo is even possible.</p>
+                    <p><b>2. Avoidance:</b> Unlike simple detection, this algorithm simulates the future. If a request might lead to a dead-end, the request is denied.</p>
+                    <p><b>3. Safe State:</b> A state where at least one flight path exists that allows every ship to finish its mission and return its resources.</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 bg-slate-900 text-slate-400">
+                <h3 class="text-[9px] font-black text-indigo-400 uppercase mb-4 tracking-widest">Mission Control Log</h3>
+                <div id="log" class="flex-1 mono text-[10px] overflow-y-auto space-y-2 h-40 scrollbar-hide">
+                    <div>> System Online. Ships Awaiting Clearance.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-8 space-y-6">
+            
+            <div class="glass-card p-6 flex justify-between items-center bg-white">
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Docking Bay Resources</span>
+                    <h2 class="text-xl font-800 italic uppercase">Available Supply</h2>
+                </div>
+                <div class="flex gap-4">
+                    <div class="text-center p-3 px-6 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span class="chip-a resource-chip">Fuel A</span>
+                        <div id="availA" class="text-2xl font-800 mt-1">3</div>
+                    </div>
+                    <div class="text-center p-3 px-6 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span class="chip-b resource-chip">Parts B</span>
+                        <div id="availB" class="text-2xl font-800 mt-1">3</div>
+                    </div>
+                    <div class="text-center p-3 px-6 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span class="chip-c resource-chip">Oxygen C</span>
+                        <div id="availC" class="text-2xl font-800 mt-1">2</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="fleet" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
+
+            <div class="glass-card p-8 bg-indigo-50 border-indigo-100 flex flex-col items-start gap-6">
+                <div class="w-full">
+                    <h4 class="text-[11px] font-black text-indigo-600 uppercase mb-2 tracking-widest">Active Task: Navigation Architect</h4>
+                    
+                    <div class="space-y-4 w-full">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold text-indigo-600">Task 1: Priority Launch.</span>
+                                <button onclick="startTask(1)" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter">Start Task</button>
+                            </div>
+                            <p class="text-[11px] text-indigo-950/70">Compare Available Supply to Mission Needs. Determine which ship can launch immediately.</p>
+                            <div id="sug-1" class="suggestion-box"><strong>Tip:</strong> Look for a ship where every 'Need' value is ≤ 'Available' (3 3 2). S-02 needs (1 2 2).</div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold text-indigo-600">Task 2: Resource Reclamation.</span>
+                                <button onclick="startTask(2)" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter">Start Task</button>
+                            </div>
+                            <p class="text-[11px] text-indigo-950/70 mb-3">Calculate the final Fuel A supply after S-02 finishes and returns its cargo.</p>
+                            <div id="sug-2" class="suggestion-box">
+                                <p class="mb-2"><strong>Pick the correct new Fuel A Total:</strong></p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="task-option" onclick="verifyTask(2, 3)">Total: 3</div>
+                                    <div class="task-option" onclick="verifyTask(2, 5)">Total: 5</div>
+                                    <div class="task-option" onclick="verifyTask(2, 7)">Total: 7</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold text-indigo-600">Task 3: Safe Path Verification.</span>
+                                <button onclick="startTask(3)" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter">Start Task</button>
+                            </div>
+                            <p class="text-[11px] text-indigo-950/70 mb-3">Which ship can safely follow S-02 in the sequence?</p>
+                            <div id="sug-3" class="suggestion-box">
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="task-option" onclick="verifyTask(3, 'S-01')">Explorer (S-01)</div>
+                                    <div class="task-option" onclick="verifyTask(3, 'S-03')">Freighter (S-03)</div>
+                                    <div class="task-option" onclick="verifyTask(3, 'S-04')">Scout (S-04)</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold text-indigo-600">Task 4: Deadlock Prevention.</span>
+                                <button onclick="startTask(4)" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter">Start Task</button>
+                            </div>
+                            <p class="text-[11px] text-indigo-950/70 mb-3">Enter the minimum extra Fuel A needed to make the Freighter (S-03) safe to launch immediately.</p>
+                            <div id="sug-4" class="suggestion-box">
+                                <div class="flex gap-2">
+                                    <input type="number" id="task4Input" class="w-20 p-1 border rounded text-xs" placeholder="Qty">
+                                    <button onclick="verifyTask(4, document.getElementById('task4Input').value)" class="bg-slate-800 text-white px-2 py-1 rounded text-[10px] uppercase">Submit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-4 w-full justify-center pt-2">
+                    <button onclick="runSafetyScan()" class="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-800 uppercase text-xs shadow-xl shadow-indigo-200 hover:scale-105 transition">
+                        <i class="fas fa-radar mr-2"></i> Initiate Safety Scan
+                    </button>
+                    <button onclick="resetLab()" class="bg-white border-2 border-indigo-200 text-indigo-600 px-8 py-4 rounded-2xl font-800 uppercase text-xs hover:bg-indigo-50 transition">
+                        Reset Fleet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const initialShips = [
+            { id: "S-01", name: "Explorer", alloc: [0, 1, 0], max: [7, 5, 3], icon: "fa-rocket" },
+            { id: "S-02", name: "Miner", alloc: [2, 0, 0], max: [3, 2, 2], icon: "fa-shuttle-space" },
+            { id: "S-03", name: "Freighter", alloc: [3, 0, 2], max: [9, 0, 2], icon: "fa-truck-front" },
+            { id: "S-04", name: "Scout", alloc: [2, 1, 1], max: [2, 2, 2], icon: "fa-satellite" }
+        ];
+
+        let ships = JSON.parse(JSON.stringify(initialShips));
+        let avail = [3, 3, 2];
+
+        function renderFleet() {
+            const container = document.getElementById('fleet');
+            container.innerHTML = '';
+            ships.forEach((s, idx) => {
+                const need = s.max.map((m, i) => m - s.alloc[i]);
+                container.innerHTML += `
+                    <div id="ship-${idx}" class="glass-card p-5 ship border-2 border-transparent">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                                    <i class="fas ${s.icon} floating"></i>
+                                </div>
+                                <div>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">${s.id}</span>
+                                    <h4 class="text-sm font-800">${s.name}</h4>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[9px] font-black text-indigo-500 uppercase">Mission Need</span>
+                                <div class="flex gap-1 mt-1 mono text-xs font-bold">${need.join(' ')}</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[10px]">
+                            <div class="bg-slate-50 p-2 rounded-lg">
+                                <span class="text-slate-400 font-bold uppercase block text-[8px]">Holding</span>
+                                <span class="font-800">${s.alloc.join(' ')}</span>
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-lg">
+                                <span class="text-slate-400 font-bold uppercase block text-[8px]">Max Cargo</span>
+                                <span class="font-800">${s.max.join(' ')}</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        async function startTask(num) {
+            document.querySelectorAll('.suggestion-box').forEach(el => el.style.display = 'none');
+            document.getElementById(`sug-${num}`).style.display = 'block';
+            writeLog(`Architect Task ${num} Activated.`);
+            if(num === 1) runSafetyScan();
+        }
+
+        function verifyTask(num, val) {
+            const log = document.getElementById('log');
+            if(num === 2) {
+                if(val === 5) writeLog("Task 2 Correct: 3(Avail) + 2(S-02 Alloc) = 5.", "text-emerald-500");
+                else writeLog("Task 2 Incorrect: Recall that returned = Available + Allocation.", "text-rose-500");
+            }
+            if(num === 3) {
+                if(val === 'S-04') writeLog("Task 3 Correct: S-04 Need (0 1 1) fits in new (5 3 2) supply.", "text-emerald-500");
+                else writeLog("Task 3 Incorrect: Check the needs against the updated supply pool.", "text-rose-500");
+            }
+            if(num === 4) {
+                if(parseInt(val) === 3) writeLog("Task 4 Correct: S-03 Need is 6. Available is 3. We need 3 more.", "text-emerald-500");
+                else writeLog("Task 4 Incorrect: Calculate the gap between S-03 Need and current Available.", "text-rose-500");
+            }
+        }
+
+        async function runSafetyScan() {
+            resetLab();
+            let work = [...avail];
+            let finish = new Array(ships.length).fill(false);
+            let sequence = [];
+            
+            writeLog("Scanning for Safe Path...");
+
+            while (sequence.length < ships.length) {
+                let found = false;
+                for (let i = 0; i < ships.length; i++) {
+                    if (!finish[i]) {
+                        const need = ships[i].max.map((m, j) => m - ships[i].alloc[j]);
+                        if (need.every((val, j) => val <= work[j])) {
+                            const shipEl = document.getElementById(`ship-${i}`);
+                            shipEl.classList.add('ship-active');
+                            await new Promise(r => setTimeout(r, 600));
+                            for (let k = 0; k < 3; k++) work[k] += ships[i].alloc[k];
+                            finish[i] = true;
+                            sequence.push(ships[i].name);
+                            found = true;
+                            updateAvailUI(work);
+                            shipEl.classList.add('ship-finished');
+                            writeLog(`> ${ships[i].name} Clear.`);
+                        }
+                    }
+                }
+                if (!found) break;
+            }
+        }
+
+        function updateAvailUI(newWork) {
+            document.getElementById('availA').innerText = newWork[0];
+            document.getElementById('availB').innerText = newWork[1];
+            document.getElementById('availC').innerText = newWork[2];
+        }
+
+        function writeLog(msg, color = "text-slate-400") {
+            const log = document.getElementById('log');
+            log.innerHTML = `<div class="${color}">> ${msg}</div>` + log.innerHTML;
+        }
+
+        function resetLab() {
+            ships = JSON.parse(JSON.stringify(initialShips));
+            avail = [3, 3, 2];
+            updateAvailUI(avail);
+            renderFleet();
+            document.getElementById('log').innerHTML = "<div>> System Ready.</div>";
+        }
+
+        renderFleet();
+    </script>
+</body>
+</html>
