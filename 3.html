@@ -1,0 +1,234 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Deadlock Intelligence Suite | Detection and Prevention</title>
+    <style>
+        :root {
+            --bg: #fcfdfe;
+            --primary: #6366f1;
+            --danger: #f43f5e;
+            --success: #10b981;
+            --text: #1e293b;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 350px 1fr; gap: 25px; }
+
+        /* Sidebar Styling */
+        .sidebar { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .theory-item { border-left: 4px solid var(--primary); padding-left: 15px; margin-bottom: 25px; }
+        .theory-item h4 { margin: 0; font-size: 0.9rem; color: var(--primary); text-transform: uppercase; }
+        .theory-item p { margin: 5px 0 0; font-size: 0.85rem; color: #64748b; line-height: 1.5; }
+
+        /* Canvas/Workspace Area */
+        .main-panel { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); position: relative; border: 1px solid #f1f5f9; }
+        .workspace { 
+            height: 500px; border: 2px dashed #e2e8f0; border-radius: 15px; position: relative; 
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 30px 30px;
+            overflow: hidden; cursor: crosshair;
+        }
+        
+        .node { 
+            width: 70px; height: 70px; border-radius: 12px; position: absolute; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 0.75rem; border: 3px solid #cbd5e1; background: white;
+            transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
+        }
+        .node-process { border-color: var(--primary); color: var(--primary); }
+        .node-resource { border-color: #334155; border-radius: 50%; color: #334155; }
+        .node.selected { ring: 4px solid var(--primary); box-shadow: 0 0 15px rgba(99, 102, 241, 0.3); transform: scale(1.1); }
+        .node.deadlocked { border-color: var(--danger); animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+
+        /* Controls */
+        .controls { display: flex; gap: 10px; margin-top: 20px; }
+        button { 
+            padding: 12px 20px; border-radius: 8px; border: none; cursor: pointer; 
+            font-weight: 700; background: #1e293b; color: white; transition: 0.2s; font-size: 0.75rem;
+        }
+        button:hover { background: #334155; }
+        .btn-scan { background: var(--primary); }
+        .toggle-box { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; }
+
+        .console { 
+            background: #0f172a; color: #38bdf8; padding: 15px; border-radius: 12px; 
+            font-family: 'Consolas', monospace; font-size: 0.8rem; margin-top: 20px; border-left: 5px solid var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align: center; font-weight: 800; margin-bottom: 5px;">Deadlock Concept</h1>
+    <p style="text-align: center; color: #64748b; margin-bottom: 30px;">Graph-Based Detection and Hierarchical Prevention</p>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="theory-item">
+                <h4>Deadlock Detection</h4>
+                <p>A closed chain of processes where each holds a resource requested by the next. This is the root of most deadlocks.</p>
+            </div>
+            <div class="theory-item" style="border-color: var(--success)">
+                <h4>Deadlock Prevention</h4>
+                <p>A prevention strategy where resources are assigned numbers. Processes must request them in strictly increasing order.</p>
+            </div>
+
+            <div class="console" id="log">System Ready. <br> Deploy nodes and create links.</div>
+
+            <div class="toggle-box">
+                <input type="checkbox" id="prevention-toggle">
+                <label for="prevention-toggle">Enable Prevention Guard</label>
+            </div>
+
+            <button style="width: 100%; margin-bottom: 10px;" onclick="spawnNode('PROCESS')">Add Process</button>
+            <button style="width: 100%;" onclick="spawnNode('RESOURCE')">Add Resource</button>
+            <button style="width: 100%; margin-top: 10px; background: var(--danger);" onclick="resetWorkspace()">Clear All</button>
+        </div>
+
+        <div class="main-panel">
+            <div id="feedback" style="text-align: center; font-weight: bold; margin-bottom: 15px; min-height: 20px;"></div>
+            <div class="workspace" id="workspace">
+                <svg id="svg-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;">
+                    <defs>
+                        <marker id="arrow" markerWidth="10" markerHeight="10" refX="25" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#64748b" />
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+            <div class="controls">
+                <button class="btn-scan" onclick="detectCycles()">Scan for Deadlocks</button>
+                <p style="font-size: 0.7rem; color: #64748b;">Click two nodes in sequence to link them. Processes link to Resources (Request) or vice versa (Hold).</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let nodes = [];
+        let edges = [];
+        let selectedId = null;
+        let nodeCount = 0;
+
+        function spawnNode(type) {
+            const id = (type === 'PROCESS' ? 'P' : 'R') + (++nodeCount);
+            const x = Math.random() * 600 + 50;
+            const y = Math.random() * 400 + 50;
+            nodes.push({ id, type, x, y });
+            render();
+        }
+
+        function render() {
+            const ws = document.getElementById('workspace');
+            const svg = document.getElementById('svg-layer');
+            ws.querySelectorAll('.node').forEach(n => n.remove());
+            while(svg.childNodes.length > 2) svg.removeChild(svg.lastChild);
+
+            // Draw Edges
+            edges.forEach(edge => {
+                const from = nodes.find(n => n.id === edge.from);
+                const to = nodes.find(n => n.id === edge.to);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", from.x + 35); line.setAttribute("y1", from.y + 35);
+                line.setAttribute("x2", to.x + 35); line.setAttribute("y2", to.y + 35);
+                line.setAttribute("stroke", "#94a3b8"); line.setAttribute("stroke-width", "2");
+                line.setAttribute("marker-end", "url(#arrow)");
+                svg.appendChild(line);
+            });
+
+            // Draw Nodes
+            nodes.forEach(node => {
+                const div = document.createElement('div');
+                div.className = `node ${node.type === 'PROCESS' ? 'node-process' : 'node-resource'} ${selectedId === node.id ? 'selected' : ''}`;
+                div.style.left = node.x + 'px';
+                div.style.top = node.y + 'px';
+                div.innerHTML = node.id;
+                div.onclick = () => handleSelect(node.id);
+                ws.appendChild(div);
+            });
+        }
+
+        function handleSelect(id) {
+            const prevent = document.getElementById('prevention-toggle').checked;
+            const log = document.getElementById('log');
+
+            if (!selectedId) {
+                selectedId = id;
+            } else {
+                if (selectedId !== id) {
+                    const fromNode = nodes.find(n => n.id === selectedId);
+                    const toNode = nodes.find(n => n.id === id);
+
+                    // Prevention Logic: Hierarchical Ordering
+                    if (prevent && fromNode.type === 'PROCESS' && toNode.type === 'RESOURCE') {
+                        const fromNum = parseInt(fromNode.id.substring(1));
+                        const toNum = parseInt(toNode.id.substring(1));
+                        if (toNum <= fromNum) {
+                            log.innerHTML = "PREVENTION ALERT: Request denied. <br> Hierarchical ordering violated!";
+                            selectedId = null;
+                            render();
+                            return;
+                        }
+                    }
+
+                    edges.push({ from: selectedId, to: id });
+                    log.innerHTML = `Linked ${selectedId} to ${id}`;
+                }
+                selectedId = null;
+            }
+            render();
+        }
+
+            // Simple Cycle Detection (DFS)
+        function detectCycles() {
+            let visited = new Set();
+            let stack = new Set();
+            let deadlocked = new Set();
+
+            function dfs(u) {
+                visited.add(u);
+                stack.add(u);
+                const neighbors = edges.filter(e => e.from === u).map(e => e.to);
+                
+                for (let v of neighbors) {
+                    if (!visited.has(v)) {
+                        if (dfs(v)) return true;
+                    } else if (stack.has(v)) {
+                        deadlocked.add(v); // Start identifying cycle nodes
+                        return true;
+                    }
+                }
+                stack.delete(u);
+                return false;
+            }
+
+            nodes.forEach(n => {
+                if (!visited.has(n.id)) {
+                    if (dfs(n.id)) {
+                        document.getElementById('feedback').innerHTML = "DEADLOCK DETECTED: Circular Wait Found!";
+                        document.getElementById('feedback').style.color = "var(--danger)";
+                        return;
+                    }
+                }
+            });
+
+            if (deadlocked.size === 0) {
+                document.getElementById('feedback').innerHTML = "SCAN COMPLETE: No Deadlocks Found.";
+                document.getElementById('feedback').style.color = "var(--success)";
+            }
+        }
+
+        function resetWorkspace() {
+            nodes = []; edges = []; nodeCount = 0; selectedId = null;
+            document.getElementById('feedback').innerHTML = "";
+            document.getElementById('log').innerHTML = "Workspace Cleared.";
+            render();
+        }
+
+        spawnNode('PROCESS'); spawnNode('RESOURCE');
+    </script>
+</body>
+</html>
