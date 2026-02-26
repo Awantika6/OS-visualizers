@@ -1,0 +1,221 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Disk Scheduling Architect | Multi-Algo Arena</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #64748b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: #1e293b; padding: 20px; margin: 0; }
+        .wrapper { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        
+        .sidebar { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .theory-item { border-left: 4px solid var(--primary); padding-left: 15px; margin-bottom: 20px; }
+        .theory-item h4 { margin: 0; font-size: 0.95rem; color: var(--primary); }
+        .theory-item p { margin: 5px 0 0; font-size: 0.85rem; color: var(--secondary); }
+
+        .main-panel { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        .page-title { text-align: center; color: var(--primary); margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; background: #f8fafc; padding: 20px; border-radius: 12px; }
+        
+        input, select { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; width: 100%; box-sizing: border-box; font-weight: 500; }
+        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
+        .btn-reset { background: var(--secondary); margin-top: 10px; }
+        .btn:hover { filter: brightness(1.1); }
+        
+        .chart-container { background: #0f172a; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        canvas { width: 100%; height: 350px; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; margin-top: 10px; }
+        th { background: #f1f5f9; color: var(--secondary); font-size: 0.8rem; text-transform: uppercase; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600; }
+        .highlight-row { background: #eef2ff; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="sidebar">
+        <h3>📖 THEORY</h3>
+        <div class="theory-item">
+            <h4>FCFS</h4>
+            <p><strong>First-Come:</strong> Fair but slow. The head moves in the exact order of arrival.</p>
+        </div>
+        <div class="theory-item" style="border-color: #8b5cf6">
+            <h4>SSTF</h4>
+            <p><strong>Shortest Seek:</strong> Greedy. Always goes to the closest next track. Saves distance but can cause starvation.</p>
+        </div>
+        <div class="theory-item" style="border-color: var(--success)">
+            <h4>SCAN</h4>
+            <p><strong>Elevator:</strong> Moves toward one end of the disk, servicing all requests along the way, then reverses direction.</p>
+        </div>
+        <div class="theory-item" style="border-color: var(--danger)">
+            <h4>C-SCAN</h4>
+            <p><strong>Circular:</strong> Moves in one direction to the end, then jumps back to the start without servicing requests on the return trip.</p>
+        </div>
+
+        <div style="background: #fffbeb; padding: 15px; border-radius: 12px; margin-top: 20px; border: 1px solid #fef08a;">
+            <strong>🚀 Start Task:</strong>
+            <p style="font-size: 0.8rem; margin-top: 5px;">Input <code>10, 190, 15, 185</code>. Compare how <b>FCFS</b> "zig-zags" compared to <b>SSTF</b>'s optimized path.</p>
+        </div>
+    </div>
+
+    <div class="main-panel">
+        <h1 class="page-title">Disk Scheduling Algorithms </h1>
+
+        <div class="controls">
+            <div>
+                <label style="font-size:0.75rem; font-weight:bold;">Algorithm</label>
+                <select id="algo">
+                    <option value="FCFS">FCFS (Baseline)</option>
+                    <option value="SSTF">SSTF (Greedy)</option>
+                    <option value="SCAN">SCAN (Elevator)</option>
+                    <option value="CSCAN">C-SCAN (Circular)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem; font-weight:bold;">Track Requests</label>
+                <input type="text" id="requests" value="98, 183, 37, 122, 14, 124, 65, 67">
+            </div>
+            <div>
+                <label style="font-size:0.75rem; font-weight:bold;">Initial Head</label>
+                <input type="number" id="head" value="53">
+            </div>
+            <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                <button class="btn" onclick="runSim()">Analyze & Draw</button>
+                <button class="btn btn-reset" onclick="resetConsole()">Reset Console</button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="diskCanvas"></canvas>
+        </div>
+
+        <h3> Comparison</h3>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Algorithm</th>
+                    <th>Seek Path</th>
+                    <th>Total Distance</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('diskCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function calculatePath(algo, head, requests) {
+        let path = [head];
+        let temp = [...requests];
+        if (algo === 'FCFS') {
+            path = [head, ...temp];
+        } else if (algo === 'SSTF') {
+            let curr = head;
+            while(temp.length) {
+                temp.sort((a,b) => Math.abs(a-curr) - Math.abs(b-curr));
+                curr = temp.shift();
+                path.push(curr);
+            }
+        } else if (algo === 'SCAN') {
+            let right = temp.filter(x => x >= head).sort((a,b) => a-b);
+            let left = temp.filter(x => x < head).sort((a,b) => b-a);
+            path = [head, ...right, 199, ...left];
+        } else if (algo === 'CSCAN') {
+            let right = temp.filter(x => x >= head).sort((a,b) => a-b);
+            let left = temp.filter(x => x < head).sort((a,b) => a-b);
+            path = [head, ...right, 199, 0, ...left];
+        }
+        
+        let dist = 0;
+        for(let i=0; i<path.length-1; i++) dist += Math.abs(path[i] - path[i+1]);
+        return { path, dist };
+    }
+
+    function runSim() {
+        const headInput = document.getElementById('head');
+        const reqInput = document.getElementById('requests');
+        const head = parseInt(headInput.value);
+        const requests = reqInput.value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+        const activeAlgo = document.getElementById('algo').value;
+
+        const algos = ['FCFS', 'SSTF', 'SCAN', 'CSCAN'];
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+
+        algos.forEach(a => {
+            const result = calculatePath(a, head, requests);
+            const isSelected = a === activeAlgo;
+            tableBody.innerHTML += `
+                <tr class="${isSelected ? 'highlight-row' : ''}">
+                    <td>${a}</td>
+                    <td style="font-size:0.7rem; font-family:monospace;">${result.path.join(' → ')}</td>
+                    <td>${result.dist} units</td>
+                </tr>
+            `;
+            if(isSelected) draw(result.path);
+        });
+    }
+
+    function resetConsole() {
+        document.getElementById('requests').value = "";
+        document.getElementById('head').value = "0";
+        document.getElementById('tableBody').innerHTML = "";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function draw(path) {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = 350;
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+
+        const pad = 40;
+        const xS = (canvas.width - pad*2) / 200;
+        const yS = (canvas.height - pad*2) / (path.length - 1);
+
+        ctx.strokeStyle = '#334155';
+        ctx.setLineDash([5, 5]);
+        for(let i=0; i<=200; i+=50) {
+            ctx.beginPath();
+            ctx.moveTo(pad + i*xS, pad);
+            ctx.lineTo(pad + i*xS, canvas.height - pad);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#818cf8';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        path.forEach((p, i) => {
+            const x = pad + p * xS;
+            const y = pad + i * yS;
+            if(i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        path.forEach((p, i) => {
+            ctx.fillStyle = (i === 0) ? '#f43f5e' : '#10b981';
+            ctx.beginPath();
+            ctx.arc(pad + p * xS, pad + i * yS, 5, 0, Math.PI*2);
+            ctx.fill();
+        });
+    }
+
+    window.onload = runSim;
+</script>
+</body>
+</html>
