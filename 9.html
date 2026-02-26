@@ -1,0 +1,213 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Synchronization Strategy Lab | Task-Based Learning</title>
+    <style>
+        :root {
+            --bg: #fdfdfd;
+            --primary: #4f46e5;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --resource: #94a3b8;
+            --text-dark: #1e293b;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); padding: 20px; display: flex; flex-direction: column; align-items: center; color: var(--text-dark); }
+        .wrapper { max-width: 1200px; width: 100%; display: grid; grid-template-columns: 360px 1fr; gap: 25px; }
+        
+        /* Theory and Task Sidebar */
+        .sidebar { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .theory-item { border-left: 4px solid var(--primary); padding-left: 15px; margin-bottom: 20px; }
+        .theory-item h4 { margin: 0; font-size: 0.9rem; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .theory-item p { margin: 5px 0 0; font-size: 0.85rem; color: #64748b; line-height: 1.4; }
+
+        .task-instruction-box { background: #f8fafc; border-radius: 12px; padding: 15px; margin-top: 20px; border: 1px dashed var(--primary); }
+        .task-instruction-box h5 { margin: 0 0 8px 0; font-size: 0.8rem; color: var(--primary); text-transform: uppercase; }
+        .task-instruction-box ul { margin: 0; padding-left: 18px; font-size: 0.8rem; color: #475569; }
+        .task-instruction-box li { margin-bottom: 5px; }
+
+        /* Main Simulation Panel */
+        .main-panel { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .arena { 
+            background: #ffffff; border: 2px solid #f1f5f9; border-radius: 20px; 
+            height: 420px; position: relative; overflow: hidden; margin-bottom: 20px;
+        }
+        .node { 
+            width: 90px; height: 90px; border-radius: 16px; display: flex; align-items: center; 
+            justify-content: center; font-weight: bold; position: absolute; z-index: 10;
+            background: white; border: 3px solid #cbd5e1; font-size: 0.75rem; text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }
+        .process { border-color: var(--primary); color: var(--primary); }
+        .resource { border-color: var(--resource); border-radius: 50%; color: var(--resource); }
+
+        #p1 { top: 50px; left: 80px; }
+        #p2 { top: 50px; right: 80px; }
+        #r1 { bottom: 50px; left: 80px; }
+        #r2 { bottom: 50px; right: 80px; }
+
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button { 
+            padding: 14px; border-radius: 10px; border: none; cursor: pointer; 
+            font-weight: 700; background: #1e293b; color: white; transition: 0.2s;
+            text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.5px;
+        }
+        button:hover { background: #334155; transform: translateY(-1px); }
+        .btn-task { background: var(--warning); margin-bottom: 10px; width: 100%; color: #000; }
+        .btn-reset { background: var(--danger); width: 100%; margin-top: 15px; }
+
+        .terminal { 
+            background: #0f172a; color: #38bdf8; padding: 18px; border-radius: 12px; 
+            font-family: 'Consolas', monospace; font-size: 0.85rem; min-height: 80px; margin-bottom: 15px;
+            border-left: 5px solid var(--warning); line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="margin-bottom:5px; font-weight: 800;">Synchronization and Critical Section</h1>
+    <p style="color:#64748b; margin-bottom:30px; font-size: 1.1rem;">Master Mutex Locks and Deadlock Prevention</p>
+
+    <div class="wrapper">
+        <div class="sidebar">
+            <div class="theory-item">
+                <h4>Mutex Binary Lock</h4>
+                <p>Ensures Mutual Exclusion by allowing only one process in the Critical Section at a time.</p>
+            </div>
+            <div class="theory-item" style="border-color:var(--success)">
+                <h4>Resource Deadlock</h4>
+                <p>A state where processes are stuck in a circular wait, unable to proceed.</p>
+            </div>
+
+            <div class="terminal" id="task-terminal">
+                System Initialized. <br> Click ACTIVATE TASK to begin your lab.
+            </div>
+
+            <div class="task-instruction-box" id="instruction-box" style="display:none;">
+                <h5 id="task-title">Current Task Instructions</h5>
+                <ul id="task-steps"></ul>
+            </div>
+
+            <button class="btn-task" onclick="loadTask()">Activate New Task</button>
+            <button class="btn-reset" onclick="resetSim()">Reset Arena</button>
+        </div>
+
+        <div class="main-panel">
+            <div id="task-feedback" style="margin-bottom:15px; font-weight:bold; color:var(--primary); text-align:center; min-height: 24px; font-size: 1rem;"></div>
+            <div class="arena" id="arena">
+                <svg id="svg" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;">
+                    <defs>
+                        <marker id="arrow-hold" markerWidth="10" markerHeight="10" refX="32" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#10b981" />
+                        </marker>
+                        <marker id="arrow-wait" markerWidth="10" markerHeight="10" refX="32" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#ef4444" />
+                        </marker>
+                    </defs>
+                </svg>
+                <div class="node process" id="p1">Process 1</div>
+                <div class="node process" id="p2">Process 2</div>
+                <div class="node resource" id="r1">Printer R1</div>
+                <div class="node resource" id="r2">Scanner R2</div>
+            </div>
+
+            <div class="controls">
+                <button onclick="handleAction('p1', 'r1', 'hold')">P1 Acquire R1</button>
+                <button onclick="handleAction('p2', 'r2', 'hold')">P2 Acquire R2</button>
+                <button onclick="handleAction('p1', 'r2', 'want')">P1 Request R2</button>
+                <button onclick="handleAction('p2', 'r1', 'want')">P2 Request R1</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = { p1: { hold: null, want: null }, p2: { hold: null, want: null } };
+        let activeTask = 0;
+
+        function handleAction(p, r, type) {
+            if (type === 'hold') {
+                if ((state.p1.hold === r && p !== 'p1') || (state.p2.hold === r && p !== 'p2')) {
+                    state[p].want = r;
+                } else {
+                    state[p].hold = r;
+                    state[p].want = null;
+                }
+            } else {
+                state[p].want = r;
+            }
+            update();
+            checkProgress();
+        }
+
+        function update() {
+            const svg = document.getElementById('svg');
+            const defs = svg.querySelector('defs').outerHTML;
+            svg.innerHTML = defs;
+
+            if(state.p1.hold) drawArrow(state.p1.hold, 'p1', '#10b981', 'arrow-hold');
+            if(state.p2.hold) drawArrow(state.p2.hold, 'p2', '#10b981', 'arrow-hold');
+            if(state.p1.want) drawArrow('p1', state.p1.want, '#ef4444', 'arrow-wait');
+            if(state.p2.want) drawArrow('p2', state.p2.want, '#ef4444', 'arrow-wait');
+        }
+
+        function drawArrow(fromId, toId, color, markerId) {
+            const from = document.getElementById(fromId);
+            const to = document.getElementById(toId);
+            const x1 = from.offsetLeft + from.offsetWidth / 2;
+            const y1 = from.offsetTop + from.offsetHeight / 2;
+            const x2 = to.offsetLeft + to.offsetWidth / 2;
+            const y2 = to.offsetTop + to.offsetHeight / 2;
+
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+            line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+            line.setAttribute("stroke", color); line.setAttribute("stroke-width", "3");
+            line.setAttribute("marker-end", `url(#${markerId})`);
+            document.getElementById('svg').appendChild(line);
+        }
+
+        function loadTask() {
+            resetSim();
+            activeTask++;
+            const term = document.getElementById('task-terminal');
+            const instrBox = document.getElementById('instruction-box');
+            const steps = document.getElementById('task-steps');
+            instrBox.style.display = "block";
+            
+            if(activeTask === 1) {
+                term.innerHTML = "TASK 1: Mutex Logic. <br> Goal: Prevent Process 2 from accessing R1 while Process 1 is using it.";
+                steps.innerHTML = "<li>Click P1 Acquire R1.</li><li>Click P2 Request R1.</li><li>Observe the Red Blocking Line.</li>";
+            } else if(activeTask === 2) {
+                term.innerHTML = "TASK 2: Circular Wait. <br> Goal: Intentionally create a system deadlock.";
+                steps.innerHTML = "<li>P1 Acquire R1.</li><li>P2 Acquire R2.</li><li>P1 Request R2.</li><li>P2 Request R1.</li>";
+            } else {
+                activeTask = 0;
+                term.innerHTML = "All tasks complete. <br> Use Reset to explore freely.";
+                instrBox.style.display = "none";
+            }
+        }
+
+        function checkProgress() {
+            const feedback = document.getElementById('task-feedback');
+            if (activeTask === 1 && state.p1.hold === 'r1' && state.p2.want === 'r1') {
+                feedback.innerText = "Success: Mutex Blocked Process 2!";
+                feedback.style.color = "var(--success)";
+            } else if (activeTask === 2 && state.p1.hold === 'r1' && state.p1.want === 'r2' && state.p2.hold === 'r2' && state.p2.want === 'r1') {
+                feedback.innerText = "Deadlock Detected: System Frozen!";
+                feedback.style.color = "var(--danger)";
+            } else {
+                feedback.innerText = "";
+            }
+        }
+
+        function resetSim() {
+            state = { p1: { hold: null, want: null }, p2: { hold: null, want: null } };
+            document.getElementById('task-feedback').innerText = "";
+            update();
+        }
+
+        window.onload = update;
+    </script>
+</body>
+</html>
