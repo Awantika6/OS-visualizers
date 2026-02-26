@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Paging & Virtual Memory Visualizer</title>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --primary: #4f46e5;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text: #1e293b;
+            --glass: rgba(255, 255, 255, 0.7);
+        }
+
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            background: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
+            color: var(--text); 
+            padding: 2rem;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; }
+
+        h1 {
+            text-align: center;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+        }
+
+        /* Creative Info Cards Layout */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border-top: 4px solid var(--primary);
+            transition: transform 0.3s ease;
+        }
+
+        .info-card:hover { transform: translateY(-5px); }
+        .info-card h4 { margin: 0 0 0.5rem 0; color: var(--primary); font-size: 1.1rem; }
+        .info-card p { margin: 0; font-size: 0.9rem; color: var(--secondary); }
+
+        /* Sections */
+        .section { 
+            background: var(--card-bg); 
+            border-radius: 16px; 
+            padding: 2rem; 
+            margin-bottom: 1.5rem; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .problem-statement { border-left: 8px solid var(--warning); background: #fffdf5; }
+        .task-box { border-left: 8px solid var(--primary); background: #f5f7ff; }
+        .response-box { 
+            border-left: 8px solid var(--success); 
+            background: #f0fdf4; 
+            display: none; 
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Visualizer grid styling */
+        .visualizer-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1.2fr 1fr; 
+            gap: 2rem; 
+            margin: 2rem 0;
+        }
+
+        .mem-col { 
+            background: var(--glass);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .mem-block { 
+            background: white;
+            border: 1px solid #e2e8f0; 
+            padding: 0.8rem; 
+            margin-bottom: 6px; 
+            border-radius: 8px; 
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--secondary);
+        }
+
+        .highlight { 
+            background-color: var(--primary) !important; 
+            color: white !important; 
+            border-color: var(--primary);
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4);
+            z-index: 10;
+        }
+
+        /* Controls */
+        .controls-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.8rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        input {
+            padding: 0.8rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            width: 100px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        .label-text { 
+            font-size: 0.8rem; 
+            font-weight: 800; 
+            color: var(--primary); 
+            text-transform: uppercase; 
+            margin-bottom: 15px; 
+            display: block;
+            letter-spacing: 1px;
+        }
+
+        #math-breakdown {
+            margin-top: 1rem;
+            border-left: 3px solid var(--success);
+            background: white !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Paging & Virtual Memory</h1>
+
+    <div class="info-grid">
+        <div class="info-card">
+            <h4>Page Tables</h4>
+            <p>The system's "index" mapping Logical Pages to Physical RAM locations.</p>
+        </div>
+        <div class="info-card" style="border-left-color: var(--success);">
+            <h4>Address Translation</h4>
+            <p>Mathematical bridging of a program's virtual request to hardware reality.</p>
+        </div>
+        <div class="info-card" style="border-left-color: var(--warning);">
+            <h4>Virtual Memory</h4>
+            <p>An abstraction layer providing the illusion of vast, contiguous memory space.</p>
+        </div>
+    </div>
+
+    <div class="section problem-statement">
+        <strong>⚠️ Problem Statement:</strong>
+        <p>A program wants to access <b>Logical Address 13</b>. However, Physical RAM is fragmented—it doesn't have 13 contiguous spaces. How can the OS "trick" the program into thinking the memory is contiguous while scattering data across random frames?</p>
+    </div>
+
+    <div class="section task-box">
+        <strong>🚀 Start Task: Perform a Manual Translation</strong>
+        <p>In this system, <b>Page Size = 4 bytes</b>. Calculate the physical location for address 13:</p>
+        <div class="controls-wrapper">
+            <input type="number" id="addrInput" placeholder="0-31" min="0" max="31">
+            <button class="btn" onclick="translateAddr()">Translate & Visualize</button>
+        </div>
+    </div>
+
+    <div class="visualizer-grid">
+        <div class="mem-col">
+            <span class="label-text">Logical Space</span>
+            <div id="logical-space"></div>
+        </div>
+        <div class="mem-col">
+            <span class="label-text">Page Table (Mapping)</span>
+            <div id="page-table"></div>
+        </div>
+        <div class="mem-col">
+            <span class="label-text">Physical RAM</span>
+            <div id="physical-ram"></div>
+        </div>
+    </div>
+
+    <div class="section response-box" id="responseBox">
+        <strong>✅ Translation Result</strong>
+        <p id="analysisMsg"></p>
+        <div id="math-breakdown" style="font-family: 'Courier New', monospace; background: #fff; padding: 15px; border-radius: 8px;"></div>
+    </div>
+</div>
+
+<script>
+    const table = [2, 5, 0, 7, 1, 4, 3, 6]; 
+    const PAGE_SIZE = 4;
+
+    function init() {
+        const lSpace = document.getElementById('logical-space');
+        const pTable = document.getElementById('page-table');
+        const pRam = document.getElementById('physical-ram');
+
+        for(let i=0; i<8; i++) {
+            lSpace.innerHTML += `<div class="mem-block" id="l-${i}">Page ${i} (Addr ${i*4}-${i*4+3})</div>`;
+            pTable.innerHTML += `<div class="mem-block" id="pt-${i}">Page ${i} ➔ Frame ${table[i]}</div>`;
+            pRam.innerHTML += `<div class="mem-block" id="r-${i}">Frame ${i}</div>`;
+        }
+    }
+
+    function translateAddr() {
+        const addr = parseInt(document.getElementById('addrInput').value);
+        if(isNaN(addr) || addr < 0 || addr > 31) return alert("Enter 0-31");
+
+        const pNum = Math.floor(addr / PAGE_SIZE);
+        const offset = addr % PAGE_SIZE;
+        const fNum = table[pNum];
+        const pAddr = (fNum * PAGE_SIZE) + offset;
+
+        document.querySelectorAll('.mem-block').forEach(b => b.classList.remove('highlight'));
+        document.getElementById('responseBox').style.display = 'block';
+
+        document.getElementById(`l-${pNum}`).classList.add('highlight');
+        document.getElementById(`pt-${pNum}`).classList.add('highlight');
+        document.getElementById(`r-${fNum}`).classList.add('highlight');
+
+        document.getElementById('analysisMsg').innerText = `Address ${addr} successfully mapped.`;
+        document.getElementById('math-breakdown').innerHTML = `
+            <b>Logical Address:</b> ${addr}<br>
+            <b>Page Number:</b> floor(${addr} / ${PAGE_SIZE}) = ${pNum}<br>
+            <b>Offset:</b> ${addr} % ${PAGE_SIZE} = ${offset}<br>
+            <b>Target Frame:</b> ${fNum}<br>
+            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+            <b>Physical Address:</b> (${fNum} * ${PAGE_SIZE}) + ${offset} = <span style="color:var(--primary); font-weight:bold;">${pAddr}</span>
+        `;
+    }
+    init();
+</script>
+</body>
+</html>
