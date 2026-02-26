@@ -1,0 +1,201 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Architect: Page Replacement Lab</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: #1e293b; padding: 20px; margin: 0; }
+        .title-header { text-align: center; margin-bottom: 30px; }
+        .wrapper { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 30px; }
+        
+        /* Left Sidebar Theory */
+        .sidebar { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); height: fit-content; }
+        .theory-item { border-left: 4px solid var(--primary); padding-left: 15px; margin-bottom: 25px; }
+        .theory-item h4 { margin: 0 0 5px 0; color: var(--primary); font-size: 1rem; }
+        .theory-item p { margin: 0; font-size: 0.85rem; color: #64748b; }
+
+        /* Main Visualizer */
+        .main-panel { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; }
+        
+        .algo-selector { width: 100%; display: flex; gap: 10px; margin-bottom: 25px; }
+        .btn-tab { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: #f1f5f9; font-weight: 600; transition: 0.3s; }
+        .btn-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Clock Alignment Fix */
+        .viz-container { position: relative; width: 400px; height: 400px; display: flex; align-items: center; justify-content: center; margin: 20px 0; }
+        .clock-circle { width: 300px; height: 300px; border: 8px solid #f1f5f9; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center; }
+        
+        .pointer { 
+            position: absolute; width: 4px; height: 130px; background: var(--danger); 
+            bottom: 50%; left: calc(50% - 2px); transform-origin: bottom center; 
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 5;
+        }
+        .pointer::after { content: ''; position: absolute; top: 0; left: -6px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid var(--danger); }
+
+        .frame-node { 
+            position: absolute; width: 70px; height: 70px; background: white; border: 3px solid #cbd5e1; 
+            border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            font-weight: bold; font-size: 1.1rem; transition: 0.3s; z-index: 10;
+        }
+        .ref-bit { font-size: 0.65rem; color: var(--primary); margin-top: 2px; }
+
+        .sequence-bar { background: #1e293b; color: white; padding: 18px; border-radius: 12px; width: 100%; text-align: center; font-family: 'Courier New', monospace; font-size: 1.3rem; margin-bottom: 25px; box-sizing: border-box; }
+        .action-btn { background: #1e293b; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1rem; transition: 0.2s; }
+        .action-btn:hover { background: #334155; }
+    </style>
+</head>
+<body>
+
+<div class="title-header">
+    <h1 style="margin:0; color:#1e293b;">Page Replacement Algorithms </h1>
+    <p style="color:#64748b;">FIFO, LRU, Optimal, and Clock Strategy Analysis</p>
+</div>
+
+<div class="wrapper">
+    <div class="sidebar">
+        <div class="theory-item">
+            <h4>FIFO Strategy</h4>
+            <p><strong>First-In First-Out:</strong> Treats frames as a queue; the page that has been in memory the longest is evicted.</p>
+        </div>
+        <div class="theory-item" style="border-color: var(--success)">
+            <h4>LRU Strategy</h4>
+            <p><strong>Least Recently Used:</strong> Evicts the page that hasn't been accessed for the longest period of time.</p>
+        </div>
+        <div class="theory-item" style="border-color: #f59e0b">
+            <h4>Optimal Policy</h4>
+            <p><strong>Min-Fault:</strong> Evicts the page that will not be used for the longest time in the <em>future</em>.</p>
+        </div>
+
+        <div style="background: #fffbeb; padding: 15px; border-radius: 12px; margin-top: 20px; border: 1px solid #fef08a;">
+            <strong style="font-size: 0.9rem;">🚀 Interactive Task:</strong>
+            <p id="task-desc" style="font-size: 0.8rem; margin: 8px 0 0 0;">Step through the sequence. Notice how <b>Clock</b> skips pages with R=1 to give them a "Second Chance"!</p>
+        </div>
+    </div>
+
+    <div class="main-panel">
+        <div class="algo-selector">
+            <button class="btn-tab active" onclick="setAlgo('FIFO', this)">FIFO</button>
+            <button class="btn-tab" onclick="setAlgo('LRU', this)">LRU</button>
+            <button class="btn-tab" onclick="setAlgo('OPT', this)">Optimal</button>
+            <button class="btn-tab" onclick="setAlgo('CLOCK', this)">Clock</button>
+        </div>
+
+        <div class="sequence-bar" id="seq-display">7 | 0 | 1 | 2 | 0 | 3 | 0 | 4</div>
+
+        <div class="viz-container">
+            <div class="clock-circle">
+                <div class="pointer" id="ptr"></div>
+                <div id="nodes-container"></div>
+            </div>
+        </div>
+
+        <button class="action-btn" onclick="executeStep()">Process Next Memory Request &rarr;</button>
+        <div style="margin-top:20px; font-weight:700; font-size: 1.2rem;">
+            Total Page Faults: <span id="fault-count" style="color:var(--danger)">0</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentAlgo = 'FIFO';
+    let step = 0;
+    let faults = 0;
+    let ptrPos = 0;
+    const seq = [7, 0, 1, 2, 0, 3, 0, 4, 2, 3];
+    let frames = Array.from({length: 4}, () => ({val: null, ref: 0, age: 0}));
+
+    function setAlgo(algo, btn) {
+        currentAlgo = algo;
+        document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        resetSim();
+    }
+
+    function resetSim() {
+        step = 0; faults = 0; ptrPos = 0;
+        frames = Array.from({length: 4}, () => ({val: null, ref: 0, age: 0}));
+        document.getElementById('fault-count').innerText = "0";
+        render();
+    }
+
+    function init() {
+        const container = document.getElementById('nodes-container');
+        for(let i=0; i<4; i++) {
+            const angle = (i * 90) * (Math.PI / 180);
+            const radius = 150; // Distance from center
+            const x = Math.sin(angle) * radius;
+            const y = -Math.cos(angle) * radius;
+            container.innerHTML += `<div class="frame-node" id="node-${i}" style="transform: translate(calc(-50% + ${x}px), calc(-50% + ${y}px)); left: 50%; top: 50%;">
+                <span id="v-${i}">-</span><span class="ref-bit" id="b-${i}"></span></div>`;
+        }
+        render();
+    }
+
+    function executeStep() {
+        if(step >= seq.length) return alert("Sequence Complete. Restarting...");
+        const page = seq[step];
+        let hitIndex = frames.findIndex(f => f.val === page);
+
+        if(hitIndex !== -1) {
+            frames[hitIndex].ref = 1; // Update reference bit for Clock/LRU
+            frames[hitIndex].age = step; 
+        } else {
+            faults++;
+            let victim = -1;
+            const empty = frames.findIndex(f => f.val === null);
+            
+            if(empty !== -1) victim = empty;
+            else {
+                if(currentAlgo === 'FIFO') victim = ptrPos;
+                else if(currentAlgo === 'LRU') {
+                    victim = frames.indexOf(frames.reduce((prev, curr) => prev.age < curr.age ? prev : curr));
+                } else if(currentAlgo === 'OPT') {
+                    victim = getOptVictim();
+                } else if(currentAlgo === 'CLOCK') {
+                    while(frames[ptrPos].ref === 1) {
+                        frames[ptrPos].ref = 0;
+                        ptrPos = (ptrPos + 1) % 4;
+                    }
+                    victim = ptrPos;
+                }
+            }
+            frames[victim] = {val: page, ref: 1, age: step};
+            if(currentAlgo === 'FIFO' || currentAlgo === 'CLOCK') ptrPos = (victim + 1) % 4;
+        }
+        step++;
+        render();
+    }
+
+    function getOptVictim() {
+        let farthest = -1, index = 0;
+        for(let i=0; i<4; i++) {
+            let next = seq.slice(step+1).indexOf(frames[i].val);
+            if(next === -1) return i;
+            if(next > farthest) { farthest = next; index = i; }
+        }
+        return index;
+    }
+
+    function render() {
+        frames.forEach((f, i) => {
+            document.getElementById(`v-${i}`).innerText = f.val ?? '-';
+            document.getElementById(`b-${i}`).innerText = currentAlgo === 'CLOCK' ? `R:${f.ref}` : '';
+            document.getElementById(`node-${i}`).style.borderColor = f.val ? 'var(--primary)' : '#cbd5e1';
+            document.getElementById(`node-${i}`).style.background = f.val ? '#fff' : '#f8fafc';
+        });
+        document.getElementById('ptr').style.transform = `rotate(${ptrPos * 90}deg)`;
+        document.getElementById('fault-count').innerText = faults;
+        document.getElementById('seq-display').innerHTML = seq.map((s, i) => i === step ? `<span style="background:var(--danger); color:white; padding:2px 6px; border-radius:4px">${s}</span>` : s).join(' | ');
+    }
+    init();
+</script>
+</body>
+</html>
