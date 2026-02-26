@@ -1,0 +1,220 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>File Allocation Lab | Fragmentation Analysis</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --primary: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text: #1e293b;
+            --empty: #e2e8f0;
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .wrapper { max-width: 1250px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 25px; }
+
+        /* Left Sidebar Theory */
+        .sidebar { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); height: fit-content; }
+        .theory-item { border-left: 4px solid var(--primary); padding-left: 15px; margin-bottom: 20px; }
+        .theory-item h4 { margin: 0; font-size: 0.95rem; color: var(--primary); }
+        .theory-item p { margin: 5px 0 0; font-size: 0.85rem; color: #64748b; }
+
+        /* Main Lab Layout */
+        .main-panel { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: #f1f5f9; padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--primary); }
+
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 15px; margin-bottom: 25px; }
+        
+        input, select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; width: 100%; box-sizing: border-box; }
+        .btn { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
+        .btn-add { background: var(--primary); color: white; }
+        .btn-reset { background: var(--danger); color: white; margin-top: 10px; }
+
+        .disk-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; }
+        .block { aspect-ratio: 1; background: var(--empty); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .block.active { color: white; transform: scale(1.03); }
+        .block.idx { border: 2px solid #1e293b; position: relative; }
+        
+        .terminal { background: #0f172a; color: #38bdf8; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 0.85rem; margin-top: 20px; border-left: 4px solid var(--warning); }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="sidebar">
+        <h3>📂 Theory</h3>
+        <div class="theory-item">
+            <h4>Contiguous</h4>
+            <p>Files are stored in sequential blocks. Fast for reading but causes <b>External Fragmentation</b>.</p>
+        </div>
+        <div class="theory-item" style="border-color: var(--success)">
+            <h4>Linked</h4>
+            <p>Each block contains a pointer to the next. No fragmentation, but <b>Random Access</b> is slow.</p>
+        </div>
+        <div class="theory-item" style="border-color: var(--warning)">
+            <h4>Indexed</h4>
+            <p>An "Index Block" stores all pointers. Supports <b>Fast Random Access</b> but has higher overhead.</p>
+        </div>
+
+        <div style="background: #fffbeb; padding: 15px; border-radius: 12px; border: 1px solid #fef08a; margin-top: 20px;">
+            <strong style="font-size:0.85rem;">🚀 Start Task:</strong>
+            <p style="font-size: 0.8rem; margin: 5px 0;">1. Allocate 3 Contiguous files. <br> 2. Delete the middle one. <br> 3. Try to fit a larger file in the gap!</p>
+        </div>
+    </div>
+
+    <div class="main-panel">
+        <h2 style="margin-top:0">File Allocation Methods </h2>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div style="font-size:0.7rem; color:var(--secondary)">USED BLOCKS</div>
+                <div class="stat-val" id="used-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div style="font-size:0.7rem; color:var(--secondary)">FRAG. HOLES</div>
+                <div class="stat-val" id="frag-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div style="font-size:0.7rem; color:var(--secondary)">FREE SPACE</div>
+                <div class="stat-val" id="free-val">100</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div>
+                <label style="font-size:0.7rem; font-weight:bold;">Method</label>
+                <select id="method">
+                    <option value="cont">Contiguous</option>
+                    <option value="link">Linked</option>
+                    <option value="indx">Indexed</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.7rem; font-weight:bold;">Size (1-15)</label>
+                <input type="number" id="size" value="4">
+            </div>
+            <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                <button class="btn btn-add" onclick="allocate()">Allocate File</button>
+            </div>
+            <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                <button class="btn btn-reset" onclick="resetDisk()">Format Disk</button>
+            </div>
+        </div>
+
+        <div class="disk-grid" id="grid"></div>
+
+        <div class="terminal" id="terminal">
+            > System Online. Click a block to delete the file associated with it.
+        </div>
+    </div>
+</div>
+
+<script>
+    let disk = new Array(100).fill(null);
+    let fileList = [];
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16'];
+
+    function createGrid() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        for(let i=0; i<100; i++) {
+            const b = document.createElement('div');
+            b.className = 'block';
+            b.id = 'b' + i;
+            b.innerText = i;
+            b.onclick = () => deleteFile(i);
+            grid.appendChild(b);
+        }
+    }
+
+    function allocate() {
+        const m = document.getElementById('method').value;
+        const s = parseInt(document.getElementById('size').value);
+        const name = "F" + (Math.floor(Math.random()*900)+100);
+        const color = colors[fileList.length % colors.length];
+
+        let blocks = (m === 'cont') ? findCont(s) : findScattered(s + (m === 'indx' ? 1 : 0));
+
+        if(blocks.length === 0) {
+            log(`FAILED: No contiguous space for ${s} blocks!`, 'var(--danger)');
+            return;
+        }
+
+        fileList.push({ name, method: m, color, blocks });
+        log(`Allocated ${name} (${m.toUpperCase()})`);
+        update();
+    }
+
+    function deleteFile(idx) {
+        const name = disk[idx];
+        if(!name) return;
+        fileList = fileList.filter(f => f.name !== name);
+        log(`Deleted File ${name}`);
+        update();
+    }
+
+    function findCont(s) {
+        for(let i=0; i <= 100 - s; i++) {
+            if(disk.slice(i, i+s).every(v => v === null)) return Array.from({length: s}, (_, k) => i + k);
+        }
+        return [];
+    }
+
+    function findScattered(s) {
+        let res = [];
+        for(let i=0; i<100 && res.length < s; i++) if(disk[i] === null) res.push(i);
+        return res.length === s ? res : [];
+    }
+
+    function update() {
+        disk.fill(null);
+        document.querySelectorAll('.block').forEach(b => {
+            b.style.background = 'var(--empty)';
+            b.classList.remove('active', 'idx');
+            b.innerText = b.id.replace('b', '');
+        });
+
+        fileList.forEach(f => {
+            f.blocks.forEach((idx, i) => {
+                disk[idx] = f.name;
+                const b = document.getElementById('b' + idx);
+                b.style.background = f.color;
+                b.classList.add('active');
+                if(f.method === 'indx' && i === 0) {
+                    b.classList.add('idx');
+                    b.innerText = 'IDX';
+                } else {
+                    b.innerText = f.name.substring(1);
+                }
+            });
+        });
+
+        // Stats
+        let used = disk.filter(x => x !== null).length;
+        let holes = 0;
+        for(let i=1; i<100; i++) if(disk[i] === null && disk[i-1] !== null) holes++;
+        
+        document.getElementById('used-val').innerText = used;
+        document.getElementById('frag-val').innerText = holes;
+        document.getElementById('free-val').innerText = 100 - used;
+    }
+
+    function log(m, c = '#38bdf8') {
+        const t = document.getElementById('terminal');
+        t.style.color = c;
+        t.innerText = "> " + m;
+    }
+
+    function resetDisk() { fileList = []; update(); log("Disk Formatted."); }
+    createGrid();
+</script>
+</body>
+</html>
